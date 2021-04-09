@@ -3,7 +3,6 @@ package main
 import (
 	_ "embed"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -104,12 +103,4 @@ func listenDBUS() {
 			}
 		}
 	}
-}
-
-func getIcon(s string) []byte {
-	b, err := ioutil.ReadFile(s)
-	if err != nil {
-		fmt.Print(err)
-	}
-	return b
 }
