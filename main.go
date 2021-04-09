@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -12,14 +13,17 @@ import (
 )
 
 const (
-	IconEnabled     = "assets/d_enabled.svg"
-	IconDisabled    = "assets/d_disabled.svg"
 	GAMEISREADY     = "Your game is ready"
 	GAMEISUNPAUSING = "The game is unpausing..."
 	dota2ID         = "Dota2"
 	homePage        = "https://github.com/dastier/GoDota2Accepter"
 )
 
+//go:embed assets/d_enabled.svg
+var iconEnabled []byte
+
+//go:embed assets/d_disabled.svg
+var iconDisabled []byte
 var ENABLED bool
 
 func main() {
@@ -29,7 +33,7 @@ func main() {
 
 func onReady() {
 
-	systray.SetIcon(getIcon(IconDisabled))
+	systray.SetIcon(iconDisabled)
 	systray.SetTitle("D2listener")
 	systray.SetTooltip("D2listener")
 
@@ -45,12 +49,12 @@ func onReady() {
 			case <-startListen.ClickedCh:
 				if startListen.Checked() {
 					ENABLED = false
-					systray.SetIcon(getIcon(IconDisabled))
+					systray.SetIcon(iconDisabled)
 					startListen.Uncheck()
 					fmt.Println("false and uncheck")
 				} else {
 					ENABLED = true
-					systray.SetIcon(getIcon(IconEnabled))
+					systray.SetIcon(iconEnabled)
 					startListen.Check()
 					fmt.Println("true and check and launch")
 					go listenDBUS()
