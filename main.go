@@ -12,67 +12,65 @@ import (
 )
 
 const (
-    IconEnabled = "assets/Papirus-Team-Papirus-Apps-Dota-2_enabled.svg"
-    IconDisabled = "assets/Papirus-Team-Papirus-Apps-Dota-2_d.svg"
-	GAMEISREADY = "Your game is ready"
+	IconEnabled     = "assets/d_enabled.svg"
+	IconDisabled    = "assets/d_disabled.svg"
+	GAMEISREADY     = "Your game is ready"
 	GAMEISUNPAUSING = "The game is unpausing..."
-    dota2ID = "Dota2"
-    homePage = "https://github.com/dastier"
+	dota2ID         = "Dota2"
+	homePage        = "https://github.com/dastier/GoDota2Accepter"
 )
 
 var ENABLED bool
 
-
 func main() {
-    ENABLED = false
-    systray.Run(onReady, onExit)
+	ENABLED = false
+	systray.Run(onReady, onExit)
 }
 
 func onReady() {
 
-    systray.SetIcon(getIcon(IconDisabled))
-    systray.SetTitle("D2listener")
-    systray.SetTooltip("D2listener")
+	systray.SetIcon(getIcon(IconDisabled))
+	systray.SetTitle("D2listener")
+	systray.SetTooltip("D2listener")
 
-    startListen := systray.AddMenuItemCheckbox("Listen", "Listen DBUS messages", false)
-    mURL := systray.AddMenuItem("Open home page", "my home")
-    systray.AddSeparator()
-    systray.AddSeparator()
-    mQuit := systray.AddMenuItem("Quit", "Quits this app")
+	startListen := systray.AddMenuItemCheckbox("Listen", "Listen DBUS messages", false)
+	mURL := systray.AddMenuItem("Open home page", "my home")
+	systray.AddSeparator()
+	systray.AddSeparator()
+	mQuit := systray.AddMenuItem("Quit", "Quits this app")
 
+	go func() {
+		for {
+			select {
+			case <-startListen.ClickedCh:
+				if startListen.Checked() {
+					ENABLED = false
+					systray.SetIcon(getIcon(IconDisabled))
+					startListen.Uncheck()
+					fmt.Println("false and uncheck")
+				} else {
+					ENABLED = true
+					systray.SetIcon(getIcon(IconEnabled))
+					startListen.Check()
+					fmt.Println("true and check and launch")
+					go listenDBUS()
+				}
+			case <-mURL.ClickedCh:
+				err := open.Run(homePage)
+				if err != nil {
+					os.Exit(1)
+				}
 
-    go func() {
-        for {
-            select {
-            case <-startListen.ClickedCh:
-                if (startListen.Checked()) {
-                    ENABLED = false
-                    systray.SetIcon(getIcon(IconDisabled))
-                    startListen.Uncheck()
-                    fmt.Println("false and uncheck")
-                } else {
-                    ENABLED = true
-                    systray.SetIcon(getIcon(IconEnabled))
-                    startListen.Check()
-                    fmt.Println("true and check and launch")
-                    go listenDBUS()
-                }
-            case <-mURL.ClickedCh:
-                err := open.Run(homePage)
-                if err != nil {
-                    os.Exit(1)
-                }
-
-            case <-mQuit.ClickedCh:
-                systray.Quit()
-                return
-            }
-        }
-    }()
+			case <-mQuit.ClickedCh:
+				systray.Quit()
+				return
+			}
+		}
+	}()
 }
 
 func onExit() {
-    // Cleaning stuff here.
+	// Cleaning stuff here.
 }
 
 func listenDBUS() {
@@ -83,7 +81,6 @@ func listenDBUS() {
 	}
 	defer conn.Close()
 
-
 	call := conn.BusObject().Call("org.freedesktop.DBus.AddMatch", 0,
 		"eavesdrop='true',type='method_call',interface='org.freedesktop.Notifications',member='Notify',path='/org/freedesktop/Notifications'")
 	if call.Err != nil {
@@ -91,25 +88,24 @@ func listenDBUS() {
 		os.Exit(1)
 	}
 	c := make(chan *dbus.Message, 10)
-    conn.Eavesdrop(c)
+	conn.Eavesdrop(c)
 	fmt.Println("Listening for Dota messages")
 
 	for v := range c {
 		if (strings.Contains(v.String(), GAMEISREADY)) || (strings.Contains(v.String(), GAMEISUNPAUSING)) {
-            if ENABLED {
-                fmt.Println("FOUND!")
-                fmt.Println("call finIds from loop")
-                findIds(dota2ID)
-            }
-        }
-    }
+			if ENABLED {
+				fmt.Println("FOUND!")
+				fmt.Println("call finIds from loop")
+				findIds(dota2ID)
+			}
+		}
+	}
 }
 
-
 func getIcon(s string) []byte {
-    b, err := ioutil.ReadFile(s)
-    if err != nil {
-        fmt.Print(err)
-    }
-    return b
+	b, err := ioutil.ReadFile(s)
+	if err != nil {
+		fmt.Print(err)
+	}
+	return b
 }
