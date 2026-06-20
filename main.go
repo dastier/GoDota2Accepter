@@ -1,10 +1,14 @@
 package main
 
 import (
-	_ "embed"
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
+	"sync/atomic"
+
+	_ "embed"
 
 	"github.com/getlantern/systray"
 	"github.com/godbus/dbus/v5"
@@ -23,15 +27,17 @@ var iconEnabled []byte
 
 //go:embed assets/d_disabled.svg
 var iconDisabled []byte
-var ENABLED bool
+
+var (
+	enabled       uint32 = 0 // atomic bool: 0 = disabled, 1 = enabled
+	listenerCancel context.CancelFunc
+)
 
 func main() {
-	ENABLED = false
 	systray.Run(onReady, onExit)
 }
 
 func onReady() {
-
 	systray.SetIcon(iconDisabled)
 	systray.SetTitle("D2listener")
 	systray.SetTooltip("D2listener")
@@ -46,25 +52,37 @@ func onReady() {
 		for {
 			select {
 			case <-startListen.ClickedCh:
-				if startListen.Checked() {
-					ENABLED = false
+				if atomic.LoadUint32(&enabled) == 1 {
+					// currently enabled -> disable
+					atomic.StoreUint32(&enabled, 0)
 					systray.SetIcon(iconDisabled)
 					startListen.Uncheck()
-					fmt.Println("false and uncheck")
+					if listenerCancel != nil {
+						listenerCancel()
+					}
+					log.Println("Listener disabled")
 				} else {
-					ENABLED = true
+					// disabled -> enable
+					atomic.StoreUint32(&enabled, 1)
 					systray.SetIcon(iconEnabled)
 					startListen.Check()
-					fmt.Println("true and check and launch")
-					go listenDBUS()
+					ctx, cancel := context.WithCancel(context.Background())
+					listenerCancel = cancel
+					log.Println("Listener enabled, starting DBus listener")
+					go func() {
+						if err := listenDBUS(ctx); err != nil {
+							log.Printf("DBus listener error: %v\n", err)
+						}
+					}()
 				}
 			case <-mURL.ClickedCh:
-				err := open.Run(homePage)
-				if err != nil {
-					os.Exit(1)
+				if err := open.Run(homePage); err != nil {
+					log.Printf("Failed to open home page: %v\n", err)
 				}
-
 			case <-mQuit.ClickedCh:
+				if listenerCancel != nil {
+					listenerCancel()
+				}
 				systray.Quit()
 				return
 			}
@@ -73,34 +91,49 @@ func onReady() {
 }
 
 func onExit() {
-	// Cleaning stuff here.
+	// Cleanup happens via context cancellation in goroutines
 }
 
-func listenDBUS() {
+func listenDBUS(ctx context.Context) error {
 	conn, err := dbus.SessionBus()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to connect to session bus:", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to connect to session bus: %w", err)
 	}
 	defer conn.Close()
 
 	call := conn.BusObject().Call("org.freedesktop.DBus.AddMatch", 0,
 		"eavesdrop='true',type='method_call',interface='org.freedesktop.Notifications',member='Notify',path='/org/freedesktop/Notifications'")
 	if call.Err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to add match:", call.Err)
-		os.Exit(1)
+		return fmt.Errorf("failed to add match: %w", call.Err)
 	}
+
 	c := make(chan *dbus.Message, 10)
 	conn.Eavesdrop(c)
-	fmt.Println("Listening for Dota messages")
+	log.Println("Listening for Dota 2 notifications")
 
-	for v := range c {
-		if (strings.Contains(v.String(), GAMEISREADY)) || (strings.Contains(v.String(), GAMEISUNPAUSING)) {
-			if ENABLED {
-				fmt.Println("FOUND!")
-				fmt.Println("call finIds from loop")
-				findIds(dota2ID)
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("DBus listener stopped")
+			return nil
+		case v := <-c:
+			if v == nil {
+				continue
+			}
+			if isGameReadyMessage(v) {
+				if atomic.LoadUint32(&enabled) == 1 {
+					log.Println("Game ready detected, accepting match")
+					if err := findIds(dota2ID); err != nil {
+						log.Printf("Error accepting match: %v\n", err)
+					}
+				}
 			}
 		}
 	}
+}
+
+// isGameReadyMessage checks if a DBus message indicates a game ready event
+func isGameReadyMessage(msg *dbus.Message) bool {
+	msgStr := msg.String()
+	return strings.Contains(msgStr, GAMEISREADY) || strings.Contains(msgStr, GAMEISUNPAUSING)
 }
