@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  linux-amd64:
+    name: Build Linux amd64 release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc \
+            gir1.2-appindicator3-0.1 \
+            libc6-dev \
+            libappindicator3-dev \
+            libpng++-dev \
+            libx11-dev \
+            libx11-xcb-dev \
+            libxcb-xkb-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libxtst-dev \
+            x11-xkb-utils \
+            xcb \
+            xorg-dev
+
+      - name: Check module tidiness
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Test
+        run: go test -v ./...
+
+      - name: Build binary
+        run: |
+          mkdir -p dist/package
+          go build -trimpath -ldflags="-s -w" -o dist/package/GoDota2Accepter .
+
+      - name: Package binary
+        run: |
+          cp README.md dist/package/
+          tar -C dist/package -czf "dist/GoDota2Accepter-${GITHUB_REF_NAME}-linux-amd64.tar.gz" GoDota2Accepter README.md
+          cd dist
+          sha256sum "GoDota2Accepter-${GITHUB_REF_NAME}-linux-amd64.tar.gz" > "GoDota2Accepter-${GITHUB_REF_NAME}-linux-amd64.tar.gz.sha256"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.sha256 --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.sha256 --generate-notes --verify-tag
+          fi
