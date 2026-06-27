@@ -16,7 +16,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
-        go-version: 1.18
+        go-version: 1.26
 
     - name: Build
       run: sudo apt install libappindicator3-dev gir1.2-appindicator3-0.1 gcc libc6-dev libx11-dev xorg-dev libxtst-dev  libpng++-dev  xcb libxcb-xkb-dev x11-xkb-utils libx11-xcb-dev libxkbcommon-x11-dev libxkbcommon-dev && go build -v ./...
