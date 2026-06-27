@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"sync/atomic"
 
@@ -29,7 +28,7 @@ var iconEnabled []byte
 var iconDisabled []byte
 
 var (
-	enabled       uint32 = 0 // atomic bool: 0 = disabled, 1 = enabled
+	enabled        uint32 = 0 // atomic bool: 0 = disabled, 1 = enabled
 	listenerCancel context.CancelFunc
 )
 
