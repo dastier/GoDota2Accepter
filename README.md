@@ -6,6 +6,11 @@ GoDota2Accepter is a tiny tray app for Dota 2 players who are tired of missing t
 
 Turn it on, keep playing around on your desktop, and let it watch for the Dota 2 notification. When the game-ready or unpause notification appears, it brings Dota 2 forward and presses Enter for you.
 
+<p>
+  <img src="assets/d_disabled.svg" alt="Disabled tray icon" width="48">
+  <img src="assets/d_enabled.svg" alt="Enabled tray icon" width="48">
+</p>
+
 ## Why Gamers Use It
 
 - Stop missing ready checks when Dota 2 is not the focused window.
@@ -23,6 +28,15 @@ The app listens to Linux desktop notifications over DBus and looks for Dota 2 me
 
 When one of those messages is detected, GoDota2Accepter searches for the Dota 2 window, activates it, maximizes it, waits briefly, and sends an Enter keypress.
 
+## Tray Icons
+
+The included SVG assets are used as tray-state icons:
+
+- `assets/d_disabled.svg`: listener is disabled.
+- `assets/d_enabled.svg`: listener is enabled and watching DBus notifications.
+
+The icons are embedded into the binary, so the app does not need asset files beside it at runtime.
+
 ## Install From a Release
 
 The easiest way to use GoDota2Accepter is to download a prebuilt Linux binary from the [GitHub Releases](https://github.com/dastier/GoDota2Accepter/releases) page.
@@ -36,6 +50,19 @@ tar -xzf GoDota2Accepter-v0.1.0-linux-amd64.tar.gz
 ```
 
 The release binary is built for Linux amd64. If your desktop is missing tray, X11, or AppIndicator runtime libraries, install the matching packages from your distribution or build from source with the dependencies below.
+
+To install it for your user account:
+
+```bash
+mkdir -p ~/.local/bin
+install -m 0755 GoDota2Accepter ~/.local/bin/GoDota2Accepter
+```
+
+Make sure `~/.local/bin` is in your `PATH`, then run:
+
+```bash
+GoDota2Accepter
+```
 
 ## Runtime Requirements
 
@@ -94,8 +121,21 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The release workflow builds the Linux amd64 binary, packages it as a `.tar.gz`, generates a `.sha256` checksum, and publishes both files to the matching GitHub Release.
+The release workflow builds the Linux amd64 binary, packages it as a `.tar.gz`, generates a `.sha256` checksum, and publishes both files to the matching GitHub Release. The archive includes the binary, README, MIT license, and tray icon assets.
+
+## Security and Behavior
+
+- The app listens to session DBus notification messages while the listener is enabled.
+- The app only reacts to notification text matching Dota 2 game-ready or unpause messages.
+- When a matching notification is detected, the app activates the Dota 2 window and sends one Enter keypress.
+- The app does not modify Dota 2 files, game memory, Steam files, credentials, or account data.
+- The app does not store notification data.
+- The app does not make network requests during normal use. The tray menu can open this GitHub project page in your browser if you click it.
 
 ## Notes
 
 GoDota2Accepter is not affiliated with Valve or Dota 2. Use it responsibly and make sure it fits the rules of the games and platforms you play on.
+
+## License
+
+GoDota2Accepter is released under the MIT License. See [LICENSE](LICENSE).
