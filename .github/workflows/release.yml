@@ -38,9 +38,11 @@ jobs:
             libxkbcommon-dev \
             libxkbcommon-x11-dev \
             libxtst-dev \
+            xauth \
             x11-xkb-utils \
             xcb \
-            xorg-dev
+            xorg-dev \
+            xvfb
 
       - name: Check module tidiness
         run: |
@@ -48,7 +50,7 @@ jobs:
           git diff --exit-code go.mod go.sum
 
       - name: Test
-        run: go test -v ./...
+        run: xvfb-run -a go test -v ./...
 
       - name: Build binary
         run: |
