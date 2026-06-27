@@ -58,7 +58,10 @@ jobs:
       - name: Package binary
         run: |
           cp README.md dist/package/
-          tar -C dist/package -czf "dist/GoDota2Accepter-${GITHUB_REF_NAME}-linux-amd64.tar.gz" GoDota2Accepter README.md
+          cp LICENSE dist/package/
+          mkdir -p dist/package/assets
+          cp assets/*.svg dist/package/assets/
+          tar -C dist/package -czf "dist/GoDota2Accepter-${GITHUB_REF_NAME}-linux-amd64.tar.gz" GoDota2Accepter README.md LICENSE assets
           cd dist
           sha256sum "GoDota2Accepter-${GITHUB_REF_NAME}-linux-amd64.tar.gz" > "GoDota2Accepter-${GITHUB_REF_NAME}-linux-amd64.tar.gz.sha256"
 

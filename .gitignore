@@ -1,1 +1,15 @@
 dbus_GUI
+GoDota2Accepter
+
+# Build and release artifacts
+bin/
+dist/
+*.test
+*.out
+coverage.out
+*.prof
+
+# Local/editor files
+.DS_Store
+.idea/
+.vscode/

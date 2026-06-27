@@ -133,6 +133,9 @@ func listenDBUS(ctx context.Context) error {
 
 // isGameReadyMessage checks if a DBus message indicates a game ready event
 func isGameReadyMessage(msg *dbus.Message) bool {
-	msgStr := msg.String()
-	return strings.Contains(msgStr, GAMEISREADY) || strings.Contains(msgStr, GAMEISUNPAUSING)
+	return isGameReadyText(msg.String())
+}
+
+func isGameReadyText(msg string) bool {
+	return strings.Contains(msg, GAMEISREADY) || strings.Contains(msg, GAMEISUNPAUSING)
 }
