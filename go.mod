@@ -1,6 +1,6 @@
-module dastier/dbus_GUI
+module github.com/dastier/GoDota2Accepter
 
-go 1.16
+go 1.26
 
 require (
 	github.com/getlantern/golog v0.0.0-20201105130739-9586b8bde3a9 // indirect
