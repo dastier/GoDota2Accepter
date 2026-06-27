@@ -1,4 +1,4 @@
-name: Go
+name: Go CI
 
 on:
   push:
@@ -6,23 +6,49 @@ on:
   pull_request:
     branches: [ "master" ]
 
-jobs:
+permissions:
+  contents: read
 
+jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v5
       with:
-        go-version: 1.26
-    
-    - name: Tidy dependencies
-      run: go mod tidy
+        go-version-file: go.mod
+        cache: true
+
+    - name: Install Linux build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          gcc \
+          gir1.2-appindicator3-0.1 \
+          libc6-dev \
+          libappindicator3-dev \
+          libpng++-dev \
+          libx11-dev \
+          libx11-xcb-dev \
+          libxcb-xkb-dev \
+          libxkbcommon-dev \
+          libxkbcommon-x11-dev \
+          libxtst-dev \
+          x11-xkb-utils \
+          xcb \
+          xorg-dev
+
+    - name: Check module tidiness
+      run: |
+        go mod tidy
+        git diff --exit-code go.mod go.sum
 
     - name: Build
-      run: sudo apt install libappindicator3-dev gir1.2-appindicator3-0.1 gcc libc6-dev libx11-dev xorg-dev libxtst-dev  libpng++-dev  xcb libxcb-xkb-dev x11-xkb-utils libx11-xcb-dev libxkbcommon-x11-dev libxkbcommon-dev && go build -v ./...
+      run: go build -v ./...
 
     - name: Test
       run: go test -v ./...
