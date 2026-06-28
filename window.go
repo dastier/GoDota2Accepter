@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/getlantern/systray"
 )
 
 const (
@@ -18,7 +20,7 @@ const (
 var (
 	xdotoolCmd  = "xdotool"
 	ydotoolCmd  = "ydotool"
-	execCommand = 	execCommand
+	execCommand = exec.Command
 )
 
 func findIds(id string) error {
@@ -53,6 +55,10 @@ func findIds(id string) error {
 			return fmt.Errorf("could not press enter: %w", err)
 		}
 		slog.Info("Sent accept keypress", "window", wid)
+		systray.SetTooltip("✓ Accepted!")
+		time.AfterFunc(3*time.Second, func() {
+			systray.SetTooltip("D2listener")
+		})
 		return nil
 	}
 
