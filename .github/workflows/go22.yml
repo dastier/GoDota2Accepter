@@ -40,6 +40,8 @@ jobs:
       uses: golangci/golangci-lint-action@v6
       with:
         version: latest
+      env:
+        GOLANGCI_LINT_SKIP_GO_VERSION_CHECK: "1"
 
     - name: Check module tidiness
       run: |
