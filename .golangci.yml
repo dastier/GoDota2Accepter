@@ -1,6 +1,3 @@
-run:
-  skip-go-version-check: true
-
 linters:
   enable:
     - errcheck

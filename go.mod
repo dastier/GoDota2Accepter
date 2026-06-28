@@ -1,6 +1,6 @@
 module github.com/dastier/GoDota2Accepter
 
-go 1.26
+go 1.24
 
 require (
 	github.com/getlantern/systray v1.1.0
