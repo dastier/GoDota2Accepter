@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
+	"os/signal"
 	"strings"
 	"sync/atomic"
+	"syscall"
 
 	_ "embed"
 
@@ -19,7 +22,14 @@ const (
 	GAMEISUNPAUSING = "The game is unpausing..."
 	dota2ID         = "Dota2"
 	homePage        = "https://github.com/dastier/GoDota2Accepter"
+	dbusChanBufSize = 10
 )
+
+type listener struct {
+	cancel context.CancelFunc
+}
+
+var state atomic.Pointer[listener]
 
 //go:embed assets/d_enabled.svg
 var iconEnabled []byte
@@ -27,12 +37,16 @@ var iconEnabled []byte
 //go:embed assets/d_disabled.svg
 var iconDisabled []byte
 
-var (
-	enabled        uint32 = 0 // atomic bool: 0 = disabled, 1 = enabled
-	listenerCancel context.CancelFunc
-)
-
 func main() {
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+		<-sigCh
+		if old := state.Swap(nil); old != nil {
+			old.cancel()
+		}
+		systray.Quit()
+	}()
 	systray.Run(onReady, onExit)
 }
 
@@ -51,36 +65,30 @@ func onReady() {
 		for {
 			select {
 			case <-startListen.ClickedCh:
-				if atomic.LoadUint32(&enabled) == 1 {
-					// currently enabled -> disable
-					atomic.StoreUint32(&enabled, 0)
+				if old := state.Swap(nil); old != nil {
+					old.cancel()
 					systray.SetIcon(iconDisabled)
 					startListen.Uncheck()
-					if listenerCancel != nil {
-						listenerCancel()
-					}
-					log.Println("Listener disabled")
+					slog.Info("Listener disabled")
 				} else {
-					// disabled -> enable
-					atomic.StoreUint32(&enabled, 1)
 					systray.SetIcon(iconEnabled)
 					startListen.Check()
 					ctx, cancel := context.WithCancel(context.Background())
-					listenerCancel = cancel
-					log.Println("Listener enabled, starting DBus listener")
+					state.Store(&listener{cancel: cancel})
+					slog.Info("Listener enabled, starting DBus listener")
 					go func() {
 						if err := listenDBUS(ctx); err != nil {
-							log.Printf("DBus listener error: %v\n", err)
+							slog.Error("DBus listener error", "err", err)
 						}
 					}()
 				}
 			case <-mURL.ClickedCh:
 				if err := open.Run(homePage); err != nil {
-					log.Printf("Failed to open home page: %v\n", err)
+					slog.Error("Failed to open home page", "err", err)
 				}
 			case <-mQuit.ClickedCh:
-				if listenerCancel != nil {
-					listenerCancel()
+				if old := state.Swap(nil); old != nil {
+					old.cancel()
 				}
 				systray.Quit()
 				return
@@ -89,9 +97,7 @@ func onReady() {
 	}()
 }
 
-func onExit() {
-	// Cleanup happens via context cancellation in goroutines
-}
+func onExit() {}
 
 func listenDBUS(ctx context.Context) error {
 	conn, err := dbus.SessionBus()
@@ -106,34 +112,37 @@ func listenDBUS(ctx context.Context) error {
 		return fmt.Errorf("failed to add match: %w", call.Err)
 	}
 
-	c := make(chan *dbus.Message, 10)
+	c := make(chan *dbus.Message, dbusChanBufSize)
 	conn.Eavesdrop(c)
-	log.Println("Listening for Dota 2 notifications")
+	slog.Info("Listening for Dota 2 notifications")
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("DBus listener stopped")
+			slog.Info("DBus listener stopped")
 			return nil
 		case v := <-c:
 			if v == nil {
 				continue
 			}
-			if isGameReadyMessage(v) {
-				if atomic.LoadUint32(&enabled) == 1 {
-					log.Println("Game ready detected, accepting match")
-					if err := findIds(dota2ID); err != nil {
-						log.Printf("Error accepting match: %v\n", err)
-					}
+			if isGameReadyText(v.String()) && state.Load() != nil {
+				slog.Info("Game ready detected, accepting match")
+				if err := findIds(dota2ID); err != nil {
+					slog.Error("Error accepting match", "err", err)
 				}
 			}
 		}
 	}
 }
 
-// isGameReadyMessage checks if a DBus message indicates a game ready event
-func isGameReadyMessage(msg *dbus.Message) bool {
-	return isGameReadyText(msg.String())
+func detectDisplayServer() string {
+	if v := os.Getenv("WAYLAND_DISPLAY"); v != "" {
+		return "wayland"
+	}
+	if v := os.Getenv("XDG_SESSION_TYPE"); v == "wayland" {
+		return "wayland"
+	}
+	return "x11"
 }
 
 func isGameReadyText(msg string) bool {
