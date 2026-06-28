@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 	"log/slog"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -17,8 +16,9 @@ const (
 )
 
 var (
-	xdotoolCmd = "xdotool"
-	ydotoolCmd = "ydotool"
+	xdotoolCmd  = "xdotool"
+	ydotoolCmd  = "ydotool"
+	execCommand = 	execCommand
 )
 
 func findIds(id string) error {
@@ -59,37 +59,27 @@ func findIds(id string) error {
 	return fmt.Errorf("no window found for %s", id)
 }
 
-func detectDisplayServer() string {
-	if v := os.Getenv("WAYLAND_DISPLAY"); v != "" {
-		return "wayland"
-	}
-	if v := os.Getenv("XDG_SESSION_TYPE"); v == "wayland" {
-		return "wayland"
-	}
-	return "x11"
-}
-
 func findWindow(name string) (string, error) {
-	out, err := exec.Command(xdotoolCmd, "search", "--name", name).Output()
+	out, err := 	execCommand(xdotoolCmd, "search", "--name", name).Output()
 	if err == nil {
 		if wid := strings.TrimSpace(string(out)); wid != "" {
 			return strings.SplitN(wid, "\n", 2)[0], nil
 		}
 	}
 
-	out, err = exec.Command(xdotoolCmd, "search", "--class", name).Output()
+	out, err = 	execCommand(xdotoolCmd, "search", "--class", name).Output()
 	if err == nil {
 		if wid := strings.TrimSpace(string(out)); wid != "" {
 			return strings.SplitN(wid, "\n", 2)[0], nil
 		}
 	}
 
-	pids, err := exec.Command("pgrep", "-if", name).Output()
+	pids, err := 	execCommand("pgrep", "-if", name).Output()
 	if err != nil {
 		return "", fmt.Errorf("no process found for %s", name)
 	}
 	for _, pid := range strings.Fields(string(pids)) {
-		out, err := exec.Command(xdotoolCmd, "search", "--pid", pid).Output()
+		out, err := 	execCommand(xdotoolCmd, "search", "--pid", pid).Output()
 		if err == nil {
 			if wid := strings.TrimSpace(string(out)); wid != "" {
 				return strings.SplitN(wid, "\n", 2)[0], nil
@@ -101,7 +91,7 @@ func findWindow(name string) (string, error) {
 }
 
 func getWindowTitle(wid string) string {
-	out, err := exec.Command(xdotoolCmd, "getwindowname", wid).Output()
+	out, err := 	execCommand(xdotoolCmd, "getwindowname", wid).Output()
 	if err != nil {
 		return fmt.Sprintf("<error: %v>", err)
 	}
@@ -109,12 +99,12 @@ func getWindowTitle(wid string) string {
 }
 
 func activateX11(wid string) error {
-	if out, err := exec.Command(xdotoolCmd, "windowactivate", "--sync", wid).CombinedOutput(); err != nil {
+	if out, err := 	execCommand(xdotoolCmd, "windowactivate", "--sync", wid).CombinedOutput(); err != nil {
 		return fmt.Errorf("windowactivate failed: %w, output: %s", err, strings.TrimSpace(string(out)))
 	}
 
 	slog.Info("Activated window", "id", wid)
-	if out, err := exec.Command(xdotoolCmd, "windowsize", wid, "100%", "100%").CombinedOutput(); err != nil {
+	if out, err := 	execCommand(xdotoolCmd, "windowsize", wid, "100%", "100%").CombinedOutput(); err != nil {
 		slog.Warn("windowsize failed", "err", err, "output", strings.TrimSpace(string(out)))
 	} else {
 		slog.Info("Maximized window", "id", wid)
@@ -125,9 +115,9 @@ func activateX11(wid string) error {
 func pressEnter(displayServer, wid string) error {
 	switch displayServer {
 	case "x11":
-		return exec.Command(xdotoolCmd, "key", "--window", wid, "Return").Run()
+		return 	execCommand(xdotoolCmd, "key", "--window", wid, "Return").Run()
 	case "wayland":
-		return exec.Command(ydotoolCmd, "key", "28:1", "28:0").Run()
+		return 	execCommand(ydotoolCmd, "key", "28:1", "28:0").Run()
 	default:
 		return fmt.Errorf("unsupported display server: %s", displayServer)
 	}

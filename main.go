@@ -135,6 +135,16 @@ func listenDBUS(ctx context.Context) error {
 	}
 }
 
+func detectDisplayServer() string {
+	if v := os.Getenv("WAYLAND_DISPLAY"); v != "" {
+		return "wayland"
+	}
+	if v := os.Getenv("XDG_SESSION_TYPE"); v == "wayland" {
+		return "wayland"
+	}
+	return "x11"
+}
+
 func isGameReadyText(msg string) bool {
 	return strings.Contains(msg, GAMEISREADY) || strings.Contains(msg, GAMEISUNPAUSING)
 }
