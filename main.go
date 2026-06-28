@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
@@ -69,22 +69,22 @@ func onReady() {
 					old.cancel()
 					systray.SetIcon(iconDisabled)
 					startListen.Uncheck()
-					log.Println("Listener disabled")
+					slog.Info("Listener disabled")
 				} else {
 					systray.SetIcon(iconEnabled)
 					startListen.Check()
 					ctx, cancel := context.WithCancel(context.Background())
 					state.Store(&listener{cancel: cancel})
-					log.Println("Listener enabled, starting DBus listener")
+					slog.Info("Listener enabled, starting DBus listener")
 					go func() {
 						if err := listenDBUS(ctx); err != nil {
-							log.Printf("DBus listener error: %v\n", err)
+							slog.Error("DBus listener error", "err", err)
 						}
 					}()
 				}
 			case <-mURL.ClickedCh:
 				if err := open.Run(homePage); err != nil {
-					log.Printf("Failed to open home page: %v\n", err)
+					slog.Error("Failed to open home page", "err", err)
 				}
 			case <-mQuit.ClickedCh:
 				if old := state.Swap(nil); old != nil {
@@ -114,21 +114,21 @@ func listenDBUS(ctx context.Context) error {
 
 	c := make(chan *dbus.Message, dbusChanBufSize)
 	conn.Eavesdrop(c)
-	log.Println("Listening for Dota 2 notifications")
+	slog.Info("Listening for Dota 2 notifications")
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("DBus listener stopped")
+			slog.Info("DBus listener stopped")
 			return nil
 		case v := <-c:
 			if v == nil {
 				continue
 			}
 			if isGameReadyText(v.String()) && state.Load() != nil {
-				log.Println("Game ready detected, accepting match")
+				slog.Info("Game ready detected, accepting match")
 				if err := findIds(dota2ID); err != nil {
-					log.Printf("Error accepting match: %v\n", err)
+					slog.Error("Error accepting match", "err", err)
 				}
 			}
 		}

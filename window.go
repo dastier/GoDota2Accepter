@@ -4,7 +4,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -25,16 +25,16 @@ func findIds(id string) error {
 	displayServer := detectDisplayServer()
 
 	for attempt := 1; attempt <= maxFindAttempts; attempt++ {
-		log.Printf("Searching for window: %s (attempt %d/%d)", id, attempt, maxFindAttempts)
+		slog.Info("Searching for window",
+			"name", id, "attempt", attempt, "max_attempts", maxFindAttempts)
 
 		wid, err := findWindow(id)
 		if err != nil {
-			log.Printf("Failed to find window for %s: %v", id, err)
+			slog.Warn("Failed to find window", "name", id, "attempt", attempt, "err", err)
 			continue
 		}
 
-		log.Printf("Found window ID: %s", wid)
-		log.Printf("Window title: %s", getWindowTitle(wid))
+		slog.Info("Found window", "id", wid, "title", getWindowTitle(wid))
 
 		switch displayServer {
 		case "x11":
@@ -42,17 +42,17 @@ func findIds(id string) error {
 				return fmt.Errorf("could not activate window: %w", err)
 			}
 		case "wayland":
-			log.Println("Wayland: skipping window activation (not supported)")
+			slog.Warn("Wayland: skipping window activation (not supported)")
 		default:
 			return fmt.Errorf("unsupported display server: %s", displayServer)
 		}
 
-		log.Printf("Accepting match in window %s", wid)
+		slog.Info("Accepting match", "window", wid)
 		time.Sleep(acceptDelay)
 		if err := pressEnter(displayServer, wid); err != nil {
 			return fmt.Errorf("could not press enter: %w", err)
 		}
-		log.Printf("Sent accept keypress to window %s", wid)
+		slog.Info("Sent accept keypress", "window", wid)
 		return nil
 	}
 
@@ -113,11 +113,11 @@ func activateX11(wid string) error {
 		return fmt.Errorf("windowactivate failed: %w, output: %s", err, strings.TrimSpace(string(out)))
 	}
 
-	log.Printf("Activated window %s", wid)
+	slog.Info("Activated window", "id", wid)
 	if out, err := exec.Command(xdotoolCmd, "windowsize", wid, "100%", "100%").CombinedOutput(); err != nil {
-		log.Printf("Warning: windowsize failed: %v, output: %s", err, strings.TrimSpace(string(out)))
+		slog.Warn("windowsize failed", "err", err, "output", strings.TrimSpace(string(out)))
 	} else {
-		log.Printf("Maximized window %s", wid)
+		slog.Info("Maximized window", "id", wid)
 	}
 	return nil
 }
