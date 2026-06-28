@@ -9,9 +9,12 @@ permissions:
   contents: write
 
 jobs:
-  linux-amd64:
-    name: Build Linux amd64 release
+  linux:
+    name: Build Linux
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
 
     steps:
       - name: Checkout
@@ -28,21 +31,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             gcc \
-            gir1.2-appindicator3-0.1 \
             libc6-dev \
+            libgtk-3-dev \
             libappindicator3-dev \
             libpng++-dev \
-            libx11-dev \
-            libx11-xcb-dev \
-            libxcb-xkb-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev \
-            libxtst-dev \
             xauth \
-            x11-xkb-utils \
-            xcb \
             xorg-dev \
             xvfb
+
+      - name: Install cross-compiler (arm64)
+        if: matrix.goarch == 'arm64'
+        run: sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Check module tidiness
         run: |
@@ -55,6 +54,9 @@ jobs:
       - name: Build binary
         run: |
           mkdir -p dist/package
+          GOARCH=${{ matrix.goarch }} \
+          CC=${{ matrix.goarch == 'arm64' && 'aarch64-linux-gnu-gcc' || 'gcc' }} \
+          CGO_ENABLED=1 \
           go build -trimpath -ldflags="-s -w" -o dist/package/GoDota2Accepter .
 
       - name: Package binary
@@ -63,16 +65,131 @@ jobs:
           cp LICENSE dist/package/
           mkdir -p dist/package/assets
           cp assets/*.svg dist/package/assets/
-          tar -C dist/package -czf "dist/GoDota2Accepter-${GITHUB_REF_NAME}-linux-amd64.tar.gz" GoDota2Accepter README.md LICENSE assets
+          tar -C dist/package -czf "dist/GoDota2Accepter-${GITHUB_REF_NAME}-linux-${{ matrix.goarch }}.tar.gz" GoDota2Accepter README.md LICENSE assets
           cd dist
-          sha256sum "GoDota2Accepter-${GITHUB_REF_NAME}-linux-amd64.tar.gz" > "GoDota2Accepter-${GITHUB_REF_NAME}-linux-amd64.tar.gz.sha256"
+          sha256sum "GoDota2Accepter-${GITHUB_REF_NAME}-linux-${{ matrix.goarch }}.tar.gz" > "GoDota2Accepter-${GITHUB_REF_NAME}-linux-${{ matrix.goarch }}.tar.gz.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.goarch }}
+          path: dist/*.tar.gz*
+
+  darwin:
+    name: Build macOS
+    runs-on: ${{ matrix.goarch == 'arm64' && 'macos-latest' || 'macos-13' }}
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check module tidiness
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Build binary
+        run: |
+          mkdir -p dist/package
+          GOARCH=${{ matrix.goarch }} \
+          CGO_ENABLED=1 \
+          go build -trimpath -ldflags="-s -w" -o dist/package/GoDota2Accepter .
+
+      - name: Package binary
+        run: |
+          cp README.md dist/package/
+          cp LICENSE dist/package/
+          mkdir -p dist/package/assets
+          cp assets/*.svg dist/package/assets/
+          cd dist
+          tar -czf "GoDota2Accepter-${GITHUB_REF_NAME}-darwin-${{ matrix.goarch }}.tar.gz" -C package GoDota2Accepter README.md LICENSE assets
+          sha256sum "GoDota2Accepter-${GITHUB_REF_NAME}-darwin-${{ matrix.goarch }}.tar.gz" > "GoDota2Accepter-${GITHUB_REF_NAME}-darwin-${{ matrix.goarch }}.tar.gz.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: darwin-${{ matrix.goarch }}
+          path: dist/*.tar.gz*
+
+  windows:
+    name: Build Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check module tidiness
+        shell: bash
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Build binary
+        run: |
+          mkdir dist\package
+          CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o dist\package\GoDota2Accepter.exe .
+
+      - name: Package binary
+        shell: bash
+        run: |
+          cp README.md dist/package/
+          cp LICENSE dist/package/
+          mkdir -p dist/package/assets
+          cp assets/*.svg dist/package/assets/
+          cd dist
+          7z a "GoDota2Accepter-${GITHUB_REF_NAME}-windows-amd64.zip" ./package/*
+          sha256sum "GoDota2Accepter-${GITHUB_REF_NAME}-windows-amd64.zip" > "GoDota2Accepter-${GITHUB_REF_NAME}-windows-amd64.zip.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: dist/*.zip*
+
+  publish:
+    name: Publish release
+    needs: [linux, darwin, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p release
+          find dist -name "*.tar.gz" -o -name "*.zip" -o -name "*.sha256" | while read f; do
+            cp "$f" release/
+          done
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cd release
+          files=$(ls)
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.sha256 --clobber
+            gh release upload "$GITHUB_REF_NAME" $files --clobber
           else
-            gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.sha256 --generate-notes --verify-tag
+            gh release create "$GITHUB_REF_NAME" $files --generate-notes --verify-tag
           fi

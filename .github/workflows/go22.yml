@@ -28,21 +28,18 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           gcc \
-          gir1.2-appindicator3-0.1 \
           libc6-dev \
+          libgtk-3-dev \
           libappindicator3-dev \
           libpng++-dev \
-          libx11-dev \
-          libx11-xcb-dev \
-          libxcb-xkb-dev \
-          libxkbcommon-dev \
-          libxkbcommon-x11-dev \
-          libxtst-dev \
           xauth \
-          x11-xkb-utils \
-          xcb \
           xorg-dev \
           xvfb
+
+    - name: Lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
 
     - name: Check module tidiness
       run: |
